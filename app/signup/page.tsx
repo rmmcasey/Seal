@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Script from 'next/script';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Shield, Lock, Eye, EyeOff, Loader2, KeyRound } from 'lucide-react';
@@ -92,10 +91,7 @@ export default function SignupPage() {
   }
 
   return (
-    <>
-      <Script src="/seal-crypto.js" strategy="beforeInteractive" />
-
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -268,7 +264,6 @@ export default function SignupPage() {
             )}
           </div>
         </motion.div>
-      </div>
-    </>
+    </div>
   );
 }

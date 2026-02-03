@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Script from 'next/script';
 import { Shield, LogOut, User } from 'lucide-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import EncryptPanel from '@/components/dashboard/EncryptPanel';
@@ -34,11 +33,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <>
-      {/* Load seal-crypto.js from public directory */}
-      <Script src="/seal-crypto.js" strategy="beforeInteractive" />
-
-      <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50">
         {/* Dashboard header */}
         <header className="border-b border-slate-200 bg-white">
           <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
@@ -75,7 +70,6 @@ export default function DashboardPage() {
         <main className="mx-auto max-w-5xl px-4 py-10">
           <EncryptPanel />
         </main>
-      </div>
-    </>
+    </div>
   );
 }
