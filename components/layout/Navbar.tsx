@@ -71,7 +71,7 @@ export default function Navbar() {
               Login
             </a>
             <a
-              href="/register"
+              href="/signup"
               className="px-6 py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary-dark transition-colors shadow-sm"
             >
               Get Started
@@ -120,7 +120,7 @@ export default function Navbar() {
                 Login
               </a>
               <a
-                href="/register"
+                href="/signup"
                 className="block text-center py-2.5 bg-primary text-white font-semibold rounded-lg hover:bg-primary-dark transition-colors"
               >
                 Get Started
