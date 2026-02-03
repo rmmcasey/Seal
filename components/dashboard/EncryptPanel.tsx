@@ -8,7 +8,7 @@ import RecipientSelector, { type Recipient } from './RecipientSelector';
 import ExpirationSelector from './ExpirationSelector';
 import EncryptionProgress, { type EncryptionStep } from './EncryptionProgress';
 import { createSealFile, type SealFileResult } from '@/lib/crypto';
-import { storeEncryptedFile } from '@/lib/supabase/client';
+import { storeEncryptedFile, DEMO_MODE } from '@/lib/supabase/client';
 
 export default function EncryptPanel() {
   // Form state
@@ -115,6 +115,15 @@ export default function EncryptPanel() {
             Files are encrypted in your browser before upload. We never see your data.
           </p>
         </div>
+
+        {/* Demo mode banner */}
+        {DEMO_MODE && (
+          <div className="mx-6 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+            <p className="text-xs font-medium text-amber-800">
+              Demo mode — Supabase not configured. Using mock recipients and local encryption.
+            </p>
+          </div>
+        )}
 
         {/* Form */}
         <div className="space-y-6 px-6 py-5">
