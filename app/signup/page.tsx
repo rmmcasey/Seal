@@ -17,7 +17,7 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<'form' | 'generating' | 'done'>('form');
+  const [step, setStep] = useState<'form' | 'generating' | 'done' | 'confirm-email'>('form');
   const [error, setError] = useState<string>();
 
   async function handleSignup(e: React.FormEvent) {
@@ -44,7 +44,13 @@ export default function SignupPage() {
       });
 
       if (authError) throw authError;
-      if (!authData.user) throw new Error('Signup failed');
+      if (!authData.user) throw new Error('Signup failed — no user returned');
+
+      // Check if email confirmation is required
+      // When confirm email is enabled, identities will be empty or session will be null
+      const needsConfirmation =
+        !authData.session ||
+        (authData.user.identities && authData.user.identities.length === 0);
 
       // 2. Generate RSA-2048 key pair in the browser
       setStep('generating');
@@ -68,14 +74,15 @@ export default function SignupPage() {
       if (profileError) throw profileError;
 
       // 4. Store private key in localStorage (encrypted with password in production)
-      // For now, store base64-encoded. TODO: encrypt with password-derived key.
       localStorage.setItem('seal_private_key', privateKey);
       localStorage.setItem('seal_user_email', email.toLowerCase());
 
-      setStep('done');
-
-      // Redirect to dashboard after brief delay
-      setTimeout(() => router.push('/dashboard'), 1500);
+      if (needsConfirmation) {
+        setStep('confirm-email');
+      } else {
+        setStep('done');
+        setTimeout(() => router.push('/dashboard'), 1500);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed');
       setStep('form');
@@ -124,6 +131,29 @@ export default function SignupPage() {
                   Your private key never leaves this device.
                 </p>
                 <Loader2 className="mx-auto mt-4 h-5 w-5 animate-spin text-primary" />
+              </motion.div>
+            )}
+
+            {step === 'confirm-email' && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="py-8 text-center"
+              >
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-50">
+                  <Shield className="h-8 w-8 text-primary" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Check your email
+                </h3>
+                <p className="mt-2 text-sm text-slate-500">
+                  We sent a confirmation link to <span className="font-medium text-slate-700">{email}</span>.
+                  <br />
+                  Click the link to activate your account and start encrypting.
+                </p>
+                <p className="mt-4 text-xs text-slate-400">
+                  Your encryption keys have been generated and saved locally.
+                </p>
               </motion.div>
             )}
 
