@@ -99,9 +99,11 @@ export async function searchUsers(emailPrefix: string): Promise<SealUser[]> {
     .limit(5);
 
   if (error) {
-    console.error('Error searching users:', error);
+    console.error('[Seal] searchUsers error:', error);
     return [];
   }
+
+  console.log('[Seal] searchUsers results:', data?.length, 'users for prefix:', emailPrefix);
 
   return data || [];
 }
