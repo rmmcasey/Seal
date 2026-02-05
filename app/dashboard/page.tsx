@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Shield, LogOut, User } from 'lucide-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import EncryptPanel from '@/components/dashboard/EncryptPanel';
@@ -44,7 +45,7 @@ export default function DashboardPage() {
 
             <nav className="flex items-center gap-4 text-sm text-slate-600">
               <span className="font-medium text-primary">Encrypt</span>
-              <span className="cursor-not-allowed text-slate-400">Inbox</span>
+              <Link href="/viewer" className="hover:text-slate-900 transition-colors">Open .seal</Link>
               <span className="cursor-not-allowed text-slate-400">Settings</span>
             </nav>
 
