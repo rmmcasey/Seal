@@ -2,13 +2,13 @@
 
 import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Lock, Shield } from 'lucide-react';
+import { Lock, Shield, Download } from 'lucide-react';
 import FileUpload from './FileUpload';
 import RecipientSelector, { type Recipient } from './RecipientSelector';
 import ExpirationSelector from './ExpirationSelector';
 import EncryptionProgress, { type EncryptionStep } from './EncryptionProgress';
 import { createSealFile, type SealFileResult } from '@/lib/crypto';
-import { storeEncryptedFile, DEMO_MODE } from '@/lib/supabase/client';
+import { DEMO_MODE } from '@/lib/supabase/client';
 
 export default function EncryptPanel() {
   // Form state
@@ -26,7 +26,9 @@ export default function EncryptPanel() {
     recipients.every((r) => r.verified) &&
     step === 'idle';
 
-  const isProcessing = step === 'encrypting' || step === 'uploading';
+  const isProcessing = step === 'encrypting' || step === 'downloading';
+
+  const [sealFileName, setSealFileName] = useState<string>();
 
   const handleEncrypt = useCallback(async () => {
     if (!file || recipients.length === 0) return;
@@ -56,26 +58,24 @@ export default function EncryptPanel() {
         { expiresAt: expiresAt.toISOString() }
       );
 
-      // Upload encrypted data to Supabase
-      setStep('uploading');
+      // Package as downloadable .seal file
+      setStep('downloading');
 
-      const result = await storeEncryptedFile(
-        {
-          file_name: sealFile.fileName,
-          file_size: sealFile.fileSize,
-          encrypted_data: sealFile.encryptedData,
-          iv: sealFile.iv,
-          expires_at: expiresAt.toISOString(),
-        },
-        sealFile.recipients.map((r) => ({
-          email: r.email,
-          encrypted_key: r.encryptedKey,
-        }))
-      );
+      const outputFileName = `${file.name}.seal`;
+      setSealFileName(outputFileName);
+      const sealBlob = new Blob([JSON.stringify(sealFile)], {
+        type: 'application/octet-stream',
+      });
 
-      if ('error' in result) {
-        throw new Error(result.error);
-      }
+      // Trigger browser download
+      const url = URL.createObjectURL(sealBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = outputFileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
       setStep('complete');
     } catch (err) {
@@ -92,6 +92,7 @@ export default function EncryptPanel() {
     setExpirationDays(3);
     setStep('idle');
     setErrorMessage(undefined);
+    setSealFileName(undefined);
   }, []);
 
   return (
@@ -169,8 +170,8 @@ export default function EncryptPanel() {
                 `}
               >
                 <span className="flex items-center justify-center gap-2">
-                  <Lock className="h-4 w-4" />
-                  Encrypt & Send
+                  <Download className="h-4 w-4" />
+                  Encrypt & Download
                 </span>
               </button>
             </>

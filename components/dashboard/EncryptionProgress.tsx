@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import {
   Shield,
-  Upload,
+  Download,
   CheckCircle2,
   AlertCircle,
   Lock,
@@ -13,7 +13,7 @@ import {
 export type EncryptionStep =
   | 'idle'
   | 'encrypting'
-  | 'uploading'
+  | 'downloading'
   | 'complete'
   | 'error';
 
@@ -30,13 +30,13 @@ const STEPS = [
     icon: Lock,
   },
   {
-    key: 'uploading' as const,
-    label: 'Uploading encrypted file...',
-    icon: Upload,
+    key: 'downloading' as const,
+    label: 'Downloading .seal file...',
+    icon: Download,
   },
   {
     key: 'complete' as const,
-    label: 'Sealed! Recipients can now access this file.',
+    label: 'Sealed! Attach the .seal file to your email.',
     icon: CheckCircle2,
   },
 ];
@@ -146,7 +146,7 @@ export default function EncryptionProgress({
               width:
                 step === 'encrypting'
                   ? '40%'
-                  : step === 'uploading'
+                  : step === 'downloading'
                   ? '80%'
                   : '100%',
             }}
