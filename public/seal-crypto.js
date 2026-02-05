@@ -215,17 +215,17 @@
     }
 
     return {
-      version: 1,
+      version: '1.0',
       fileId: fileId,
-      fileName: file.name,
-      fileType: file.type,
-      fileSize: file.size,
       encryptedData: arrayBufferToBase64(encryptedData),
       iv: arrayBufferToBase64(iv),
       recipients: recipientKeys,
       metadata: {
+        filename: file.name,
+        mimetype: file.type,
+        size: file.size,
+        timestamp: new Date().toISOString(),
         ...metadata,
-        createdAt: new Date().toISOString(),
       },
     };
   }
@@ -260,8 +260,8 @@
 
     return {
       data: decryptedData,
-      fileName: sealFile.fileName,
-      fileType: sealFile.fileType,
+      fileName: sealFile.metadata.filename,
+      fileType: sealFile.metadata.mimetype,
     };
   }
 

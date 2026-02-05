@@ -4,17 +4,17 @@
  */
 
 export interface SealFileResult {
-  version: number;
+  version: string;
   fileId: string;
-  fileName: string;
-  fileType: string;
-  fileSize: number;
   encryptedData: string;
   iv: string;
   recipients: { email: string; encryptedKey: string }[];
   metadata: {
+    filename: string;
+    mimetype: string;
+    size: number;
+    timestamp: string;
     expiresAt?: string;
-    createdAt: string;
     [key: string]: unknown;
   };
 }
