@@ -63,14 +63,21 @@ export default function SignupPage() {
       const publicKey = (await sc.exportKey(keyPair.publicKey, 'spki')) as string;
       const privateKey = (await sc.exportKey(keyPair.privateKey, 'pkcs8')) as string;
 
-      // 3. Store public key in profiles table
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: authData.user.id,
-        email: email.toLowerCase(),
-        public_key: publicKey,
+      // 3. Store public key in profiles table (via server API to bypass RLS)
+      const profileRes = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: authData.user.id,
+          email: email.toLowerCase(),
+          publicKey,
+        }),
       });
 
-      if (profileError) throw profileError;
+      if (!profileRes.ok) {
+        const { error: profileError } = await profileRes.json();
+        throw new Error(profileError || 'Failed to create profile');
+      }
 
       // 4. Store private key in localStorage (encrypted with password in production)
       localStorage.setItem('seal_private_key', privateKey);
