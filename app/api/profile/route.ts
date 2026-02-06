@@ -6,7 +6,7 @@ import type { NextRequest } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, email, publicKey } = await request.json();
+    const { userId, email, publicKey, encryptedPrivateKey, salt, iv } = await request.json();
 
     if (!userId || !email || !publicKey) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -32,15 +32,33 @@ export async function POST(request: NextRequest) {
 
     const adminClient = createClient(supabaseUrl, serviceRole);
 
-    const { error } = await adminClient.from('profiles').upsert({
+    // Store profile with public key
+    const { error: profileError } = await adminClient.from('profiles').upsert({
       id: userId,
       email: email.toLowerCase(),
       public_key: publicKey,
     });
 
-    if (error) {
-      console.error('[Seal] Profile creation error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (profileError) {
+      console.error('[Seal] Profile creation error:', profileError);
+      return NextResponse.json({ error: profileError.message }, { status: 500 });
+    }
+
+    // Store encrypted private key in user metadata (if provided)
+    if (encryptedPrivateKey && salt && iv) {
+      const { error: metaError } = await adminClient.auth.admin.updateUserById(userId, {
+        user_metadata: {
+          public_key: publicKey,
+          encrypted_private_key: encryptedPrivateKey,
+          salt: salt,
+          iv: iv,
+        },
+      });
+
+      if (metaError) {
+        console.error('[Seal] User metadata update error:', metaError);
+        return NextResponse.json({ error: metaError.message }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ success: true });

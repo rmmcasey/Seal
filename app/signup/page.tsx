@@ -63,7 +63,14 @@ export default function SignupPage() {
       const publicKey = (await sc.exportKey(keyPair.publicKey, 'spki')) as string;
       const privateKey = (await sc.exportKey(keyPair.privateKey, 'pkcs8')) as string;
 
-      // 3. Store public key in profiles table (via server API to bypass RLS)
+      // 3. Encrypt the private key with the user's password
+      const encryptedKeyData = (await sc.encryptPrivateKeyWithPassword(privateKey, password)) as {
+        encryptedKey: string;
+        salt: string;
+        iv: string;
+      };
+
+      // 4. Store public key in profiles table + encrypted private key in user_metadata
       const profileRes = await fetch('/api/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -71,6 +78,9 @@ export default function SignupPage() {
           userId: authData.user.id,
           email: email.toLowerCase(),
           publicKey,
+          encryptedPrivateKey: encryptedKeyData.encryptedKey,
+          salt: encryptedKeyData.salt,
+          iv: encryptedKeyData.iv,
         }),
       });
 
@@ -79,8 +89,7 @@ export default function SignupPage() {
         throw new Error(profileError || 'Failed to create profile');
       }
 
-      // 4. Store private key in localStorage (encrypted with password in production)
-      localStorage.setItem('seal_private_key', privateKey);
+      // 5. Store email for quick lookup (private key stays server-side)
       localStorage.setItem('seal_user_email', email.toLowerCase());
 
       if (needsConfirmation) {

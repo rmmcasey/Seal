@@ -17,12 +17,14 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import SealFileUpload from '@/components/viewer/SealFileUpload';
 import FileViewer from '@/components/viewer/FileViewer';
 import FileInfo from '@/components/viewer/FileInfo';
+import PasswordPrompt from '@/components/viewer/PasswordPrompt';
 import { openSealFile, type SealFileResult, type DecryptedFile } from '@/lib/crypto';
 import { DEMO_MODE } from '@/lib/supabase/client';
 
 type ViewerStep =
   | 'upload'
   | 'validating'
+  | 'password'
   | 'decrypting'
   | 'viewing'
   | 'error';
@@ -33,13 +35,21 @@ interface ViewerError {
   icon: 'expired' | 'unauthorized' | 'invalid' | 'generic';
 }
 
+interface UserKeys {
+  encryptedPrivateKey: string;
+  salt: string;
+  iv: string;
+}
+
 export default function ViewerPage() {
   const router = useRouter();
   const [step, setStep] = useState<ViewerStep>('upload');
   const [sealFile, setSealFile] = useState<SealFileResult>();
   const [decryptedFile, setDecryptedFile] = useState<DecryptedFile>();
   const [error, setError] = useState<ViewerError>();
+  const [passwordError, setPasswordError] = useState<string>();
   const [userEmail, setUserEmail] = useState<string>();
+  const [userKeys, setUserKeys] = useState<UserKeys>();
 
   // Get current user email on mount
   useEffect(() => {
@@ -57,6 +67,8 @@ export default function ViewerPage() {
     async (parsed: unknown, _rawFile: File) => {
       const seal = parsed as SealFileResult;
       setSealFile(seal);
+      setError(undefined);
+      setPasswordError(undefined);
 
       // --- Validation ---
       setStep('validating');
@@ -102,31 +114,53 @@ export default function ViewerPage() {
         return;
       }
 
-      // --- Decryption ---
-      setStep('decrypting');
-
-      try {
+      // --- Fetch user's encrypted keys ---
+      if (DEMO_MODE) {
+        // In demo mode, use localStorage (old behavior)
         const privateKey = localStorage.getItem('seal_private_key');
         if (!privateKey) {
           setError({
             title: 'Private key not found',
-            message: 'Your encryption key was not found on this device. You may need to log in from the device where you created your account.',
+            message: 'Demo mode: private key not found in localStorage.',
             icon: 'generic',
           });
           setStep('error');
           return;
         }
+        // Decrypt directly (no password needed in demo)
+        setStep('decrypting');
+        try {
+          const result = await openSealFile(seal, email, privateKey);
+          setDecryptedFile(result);
+          setStep('viewing');
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Decryption failed';
+          setError({
+            title: 'Decryption failed',
+            message: `Could not decrypt the file. ${message}`,
+            icon: 'generic',
+          });
+          setStep('error');
+        }
+        return;
+      }
 
-        const result = await openSealFile(seal, email, privateKey);
-        setDecryptedFile(result);
-        setStep('viewing');
+      // Fetch encrypted keys from API
+      try {
+        const keysRes = await fetch('/api/users/keys');
+        if (!keysRes.ok) {
+          const { error: keysError } = await keysRes.json();
+          throw new Error(keysError || 'Could not fetch encryption keys');
+        }
+        const { keys } = await keysRes.json();
+        setUserKeys(keys);
+        setStep('password');
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Decryption failed';
         setError({
-          title: 'Decryption failed',
-          message: message.includes('not a recipient')
-            ? `You are not authorized to decrypt this file.`
-            : `Could not decrypt the file. ${message}`,
+          title: 'Keys not found',
+          message: err instanceof Error
+            ? err.message
+            : 'Your encryption keys were not found. You may need to log in from the device where you created your account.',
           icon: 'generic',
         });
         setStep('error');
@@ -135,10 +169,56 @@ export default function ViewerPage() {
     [userEmail]
   );
 
+  const handlePasswordSubmit = useCallback(
+    async (password: string) => {
+      if (!sealFile || !userKeys) return;
+
+      const email = userEmail || localStorage.getItem('seal_user_email') || '';
+      setPasswordError(undefined);
+
+      try {
+        // Get SealCrypto from global scope
+        const sc = (window as unknown as Record<string, unknown>).SealCrypto as
+          Record<string, (...args: unknown[]) => unknown>;
+        if (!sc) throw new Error('Crypto library not loaded');
+
+        // Decrypt the private key with the password
+        const privateKey = (await sc.decryptPrivateKeyWithPassword(
+          userKeys.encryptedPrivateKey,
+          password,
+          userKeys.salt,
+          userKeys.iv
+        )) as string;
+
+        // Decrypt the file
+        setStep('decrypting');
+        const result = await openSealFile(sealFile, email, privateKey);
+        setDecryptedFile(result);
+        setStep('viewing');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Decryption failed';
+        if (message.includes('Incorrect password')) {
+          setPasswordError('Incorrect password. Please try again.');
+          setStep('password');
+        } else {
+          setError({
+            title: 'Decryption failed',
+            message: `Could not decrypt the file. ${message}`,
+            icon: 'generic',
+          });
+          setStep('error');
+        }
+      }
+    },
+    [sealFile, userEmail, userKeys]
+  );
+
   const handleReset = useCallback(() => {
     setSealFile(undefined);
     setDecryptedFile(undefined);
     setError(undefined);
+    setPasswordError(undefined);
+    setUserKeys(undefined);
     setStep('upload');
   }, []);
 
@@ -196,10 +276,63 @@ export default function ViewerPage() {
             </motion.div>
           )}
 
-          {/* Validating / Decrypting state */}
-          {(step === 'validating' || step === 'decrypting') && (
+          {/* Validating state */}
+          {step === 'validating' && (
             <motion.div
-              key="processing"
+              key="validating"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mx-auto max-w-lg"
+            >
+              <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-primary">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  </div>
+                  <span className="text-sm font-medium text-slate-900">
+                    Checking access...
+                  </span>
+                </div>
+
+                <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                  <motion.div
+                    className="h-full rounded-full bg-primary"
+                    initial={{ width: '0%' }}
+                    animate={{ width: '30%' }}
+                    transition={{ duration: 0.5, ease: 'easeInOut' }}
+                  />
+                </div>
+
+                <div className="mt-4 flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-medium text-primary">
+                    End-to-end encrypted
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Password prompt state */}
+          {step === 'password' && (
+            <motion.div
+              key="password"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              <PasswordPrompt
+                onSubmit={handlePasswordSubmit}
+                error={passwordError}
+              />
+            </motion.div>
+          )}
+
+          {/* Decrypting state */}
+          {step === 'decrypting' && (
+            <motion.div
+              key="decrypting"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
@@ -207,62 +340,36 @@ export default function ViewerPage() {
             >
               <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
                 <div className="space-y-4">
-                  {/* Validate step */}
                   <div className="flex items-center gap-3">
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                      step === 'validating' ? 'bg-primary-50 text-primary' : 'bg-success/10 text-success'
-                    }`}>
-                      {step === 'validating' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <CheckCircle2 className="h-4 w-4" />
-                      )}
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success/10 text-success">
+                      <CheckCircle2 className="h-4 w-4" />
                     </div>
-                    <span className={`text-sm ${
-                      step === 'validating' ? 'font-medium text-slate-900' : 'text-slate-600'
-                    }`}>
-                      Checking access...
-                    </span>
+                    <span className="text-sm text-slate-600">Access verified</span>
                   </div>
 
-                  {/* Decrypt step */}
                   <div className="flex items-center gap-3">
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                      step === 'decrypting'
-                        ? 'bg-primary-50 text-primary'
-                        : 'bg-slate-100 text-slate-400'
-                    }`}>
-                      {step === 'decrypting' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Lock className="h-4 w-4" />
-                      )}
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-primary">
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     </div>
-                    <span className={`text-sm ${
-                      step === 'decrypting' ? 'font-medium text-slate-900' : 'text-slate-400'
-                    }`}>
+                    <span className="text-sm font-medium text-slate-900">
                       Decrypting in your browser...
                     </span>
                   </div>
                 </div>
 
-                {/* Progress bar */}
                 <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-slate-100">
                   <motion.div
                     className="h-full rounded-full bg-primary"
-                    initial={{ width: '0%' }}
-                    animate={{
-                      width: step === 'validating' ? '30%' : '70%',
-                    }}
+                    initial={{ width: '50%' }}
+                    animate={{ width: '80%' }}
                     transition={{ duration: 0.5, ease: 'easeInOut' }}
                   />
                 </div>
 
-                {/* Security badge */}
                 <div className="mt-4 flex items-center gap-2">
                   <Shield className="h-4 w-4 text-primary" />
                   <span className="text-xs font-medium text-primary">
-                    End-to-end encrypted
+                    Decrypted locally, never sent to server
                   </span>
                 </div>
               </div>

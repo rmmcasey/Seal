@@ -185,6 +185,95 @@
     return bytes.buffer;
   }
 
+  // Password-based key derivation constants
+  const PBKDF2_ITERATIONS = 100000;
+  const PBKDF2_HASH = 'SHA-256';
+  const SALT_LENGTH = 16;
+  const IV_LENGTH = 12;
+
+  /**
+   * Derive an AES-256 key from a password using PBKDF2
+   * @param {string} password
+   * @param {Uint8Array} salt
+   * @returns {Promise<CryptoKey>}
+   */
+  async function deriveKeyFromPassword(password, salt) {
+    const encoder = new TextEncoder();
+    const passwordKey = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(password),
+      'PBKDF2',
+      false,
+      ['deriveKey']
+    );
+    return await crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: salt,
+        iterations: PBKDF2_ITERATIONS,
+        hash: PBKDF2_HASH,
+      },
+      passwordKey,
+      { name: ALGORITHM, length: KEY_LENGTH },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+
+  /**
+   * Encrypt a private key with a password (for secure storage)
+   * Uses PBKDF2 for key derivation + AES-256-GCM for encryption
+   * @param {string} privateKeyBase64 - The base64-encoded private key
+   * @param {string} password - User's password
+   * @returns {Promise<{encryptedKey: string, salt: string, iv: string}>}
+   */
+  async function encryptPrivateKeyWithPassword(privateKeyBase64, password) {
+    const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
+    const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+    const derivedKey = await deriveKeyFromPassword(password, salt);
+
+    const encoder = new TextEncoder();
+    const encryptedData = await crypto.subtle.encrypt(
+      { name: ALGORITHM, iv: iv },
+      derivedKey,
+      encoder.encode(privateKeyBase64)
+    );
+
+    return {
+      encryptedKey: arrayBufferToBase64(encryptedData),
+      salt: arrayBufferToBase64(salt),
+      iv: arrayBufferToBase64(iv),
+    };
+  }
+
+  /**
+   * Decrypt a private key with a password
+   * @param {string} encryptedKeyBase64 - The encrypted private key
+   * @param {string} password - User's password
+   * @param {string} saltBase64 - The salt used for key derivation
+   * @param {string} ivBase64 - The IV used for encryption
+   * @returns {Promise<string>} - The decrypted base64-encoded private key
+   */
+  async function decryptPrivateKeyWithPassword(encryptedKeyBase64, password, saltBase64, ivBase64) {
+    const salt = new Uint8Array(base64ToArrayBuffer(saltBase64));
+    const iv = new Uint8Array(base64ToArrayBuffer(ivBase64));
+    const encryptedData = base64ToArrayBuffer(encryptedKeyBase64);
+
+    const derivedKey = await deriveKeyFromPassword(password, salt);
+
+    try {
+      const decryptedData = await crypto.subtle.decrypt(
+        { name: ALGORITHM, iv: iv },
+        derivedKey,
+        encryptedData
+      );
+      const decoder = new TextDecoder();
+      return decoder.decode(decryptedData);
+    } catch (err) {
+      throw new Error('Incorrect password');
+    }
+  }
+
   /**
    * Create a .seal file (encrypt file for multiple recipients)
    * @param {File} file - The file to encrypt
@@ -278,6 +367,8 @@
     exportKey,
     createSealFile,
     openSealFile,
+    encryptPrivateKeyWithPassword,
+    decryptPrivateKeyWithPassword,
     arrayBufferToBase64,
     base64ToArrayBuffer,
   };
