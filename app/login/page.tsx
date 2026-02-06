@@ -33,6 +33,24 @@ export default function LoginPage() {
       // Store email for crypto operations
       localStorage.setItem('seal_user_email', email.toLowerCase());
 
+      // Fetch encrypted private key and decrypt it with login password
+      const keysRes = await fetch('/api/users/keys');
+      if (keysRes.ok) {
+        const { keys } = await keysRes.json();
+        if (keys?.encryptedPrivateKey && keys?.salt && keys?.iv) {
+          // Decrypt private key with the login password
+          const sc = (window as unknown as { SealCrypto: { decryptPrivateKeyWithPassword: (key: string, pwd: string, salt: string, iv: string) => Promise<string> } }).SealCrypto;
+          const privateKey = await sc.decryptPrivateKeyWithPassword(
+            keys.encryptedPrivateKey,
+            password,
+            keys.salt,
+            keys.iv
+          );
+          // Cache in sessionStorage for the session duration
+          sessionStorage.setItem('seal_private_key', privateKey);
+        }
+      }
+
       router.push('/dashboard');
       router.refresh();
     } catch (err) {

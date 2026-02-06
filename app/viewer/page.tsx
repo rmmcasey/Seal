@@ -121,7 +121,28 @@ export default function ViewerPage() {
         return;
       }
 
-      // --- Fetch user's encrypted keys ---
+      // --- Check for cached private key first (set at login) ---
+      const cachedPrivateKey = sessionStorage.getItem('seal_private_key');
+      if (cachedPrivateKey) {
+        // Use cached key - no password needed
+        setStep('decrypting');
+        try {
+          const result = await openSealFile(seal, email, cachedPrivateKey);
+          setDecryptedFile(result);
+          setStep('viewing');
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Decryption failed';
+          setError({
+            title: 'Decryption failed',
+            message: `Could not decrypt the file. ${message}`,
+            icon: 'generic',
+          });
+          setStep('error');
+        }
+        return;
+      }
+
+      // --- Fallback: Fetch user's encrypted keys ---
       if (DEMO_MODE) {
         // In demo mode, use localStorage (old behavior)
         const privateKey = localStorage.getItem('seal_private_key');
@@ -152,7 +173,7 @@ export default function ViewerPage() {
         return;
       }
 
-      // Fetch encrypted keys from API
+      // Fetch encrypted keys from API (fallback if no cached key)
       try {
         const keysRes = await fetch('/api/users/keys');
         if (!keysRes.ok) {
@@ -196,6 +217,9 @@ export default function ViewerPage() {
           userKeys.salt,
           userKeys.iv
         )) as string;
+
+        // Cache the private key for future decryptions in this session
+        sessionStorage.setItem('seal_private_key', privateKey);
 
         // Decrypt the file
         setStep('decrypting');
