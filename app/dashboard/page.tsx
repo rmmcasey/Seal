@@ -19,9 +19,16 @@ export default function DashboardPage() {
     }
     const supabase = createClientComponentClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user?.email) setUserEmail(user.email);
+      if (user?.email) {
+        setUserEmail(user.email);
+      } else {
+        // No valid user - session is stale, sign out and redirect
+        supabase.auth.signOut().then(() => {
+          router.push('/login');
+        });
+      }
     });
-  }, []);
+  }, [router]);
 
   async function handleLogout() {
     if (DEMO_MODE) return;
