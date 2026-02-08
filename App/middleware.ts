@@ -3,6 +3,11 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
+  // Skip auth redirects for API routes — they handle auth internally and return 401
+  if (req.nextUrl.pathname.startsWith('/api/')) {
+    return NextResponse.next();
+  }
+
   const res = NextResponse.next();
   const supabase = createMiddlewareClient({ req, res });
   const { data: { session } } = await supabase.auth.getSession();
@@ -21,5 +26,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/viewer/:path*', '/login', '/signup'],
+  matcher: ['/dashboard/:path*', '/viewer/:path*', '/login', '/signup', '/api/:path*'],
 };

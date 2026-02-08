@@ -5,12 +5,19 @@
   "description": "Encrypt files with time-based expiration directly from Gmail. Send sealed files that only intended recipients can open.",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "cookies"
   ],
   "host_permissions": [
     "https://mail.google.com/*",
     "https://seal.email/*"
   ],
+  "externally_connectable": {
+    "matches": [
+      "https://seal.email/*",
+      "http://localhost:3000/*"
+    ]
+  },
   "background": {
     "service_worker": "background.js"
   },

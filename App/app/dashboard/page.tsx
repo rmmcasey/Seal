@@ -7,6 +7,7 @@ import { Shield, LogOut, User } from 'lucide-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import EncryptPanel from '@/components/dashboard/EncryptPanel';
 import { DEMO_MODE } from '@/lib/supabase/client';
+import { relayLogoutToExtension } from '@/lib/extension-bridge';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -36,6 +37,8 @@ export default function DashboardPage() {
     await supabase.auth.signOut();
     localStorage.removeItem('seal_private_key');
     localStorage.removeItem('seal_user_email');
+    // Notify extension to clear cached auth
+    relayLogoutToExtension().catch(() => {});
     router.push('/login');
     router.refresh();
   }

@@ -1,25 +1,30 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { authenticateRequest } from '@/lib/auth';
+import { corsHeaders, handleCorsPreFlight } from '@/lib/cors';
+
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsPreFlight(request);
+}
 
 export async function POST(request: NextRequest) {
+  const headers = corsHeaders(request);
+
   try {
     const { userId, email, publicKey, encryptedPrivateKey, salt, iv } = await request.json();
 
     if (!userId || !email || !publicKey) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400, headers });
     }
 
     // Verify the request comes from the authenticated user
-    const supabase = createRouteHandlerClient({ cookies });
-    const { data: { user } } = await supabase.auth.getUser();
+    const auth = await authenticateRequest(request);
 
     // Allow if the user is authenticated and matches, OR if they just signed up
     // (session may not be established yet with email confirmation)
-    if (user && user.id !== userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    if (auth.authenticated && auth.userId !== userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers });
     }
 
     // Use service role to bypass RLS for profile insertion
@@ -27,7 +32,7 @@ export async function POST(request: NextRequest) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
     if (!serviceRole || !supabaseUrl) {
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500, headers });
     }
 
     const adminClient = createClient(supabaseUrl, serviceRole);
@@ -41,7 +46,7 @@ export async function POST(request: NextRequest) {
 
     if (profileError) {
       console.error('[Seal] Profile creation error:', profileError);
-      return NextResponse.json({ error: profileError.message }, { status: 500 });
+      return NextResponse.json({ error: profileError.message }, { status: 500, headers });
     }
 
     // Store encrypted private key in user metadata (if provided)
@@ -57,13 +62,13 @@ export async function POST(request: NextRequest) {
 
       if (metaError) {
         console.error('[Seal] User metadata update error:', metaError);
-        return NextResponse.json({ error: metaError.message }, { status: 500 });
+        return NextResponse.json({ error: metaError.message }, { status: 500, headers });
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true }, { headers });
   } catch (err) {
     console.error('[Seal] Profile API error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500, headers });
   }
 }

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Shield, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { relayAuthToExtension } from '@/lib/extension-bridge';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,7 +24,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -32,6 +33,14 @@ export default function LoginPage() {
 
       // Store email for crypto operations
       localStorage.setItem('seal_user_email', email.toLowerCase());
+
+      // Relay auth token to Chrome extension (fails silently if not installed)
+      const accessToken = authData.session?.access_token;
+      if (accessToken) {
+        relayAuthToExtension(accessToken, email.toLowerCase()).catch(() => {
+          // Extension not installed or unreachable — that's fine
+        });
+      }
 
       // Fetch encrypted private key and decrypt it with login password
       const keysRes = await fetch('/api/users/keys');
