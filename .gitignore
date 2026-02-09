@@ -8,16 +8,15 @@ node_modules
 /coverage
 
 # Next.js
-.next/
-out/
+/.next/
+/out/
 
-# Build
-build/
+# Production
+/build
 
 # Misc
 .DS_Store
 *.pem
-*.log
 
 # Debug
 npm-debug.log*
