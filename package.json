@@ -1,0 +1,8 @@
+{
+  "name": "seal",
+  "private": true,
+  "scripts": {
+    "build": "cd App && npm ci && npm run build",
+    "vercel-build": "cd App && npm ci && npm run build"
+  }
+}
